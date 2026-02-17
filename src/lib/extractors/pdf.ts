@@ -1,4 +1,6 @@
-const pdf = require('pdf-parse');
+// Import the core library directly to bypass pdf-parse's self-test on require()
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const pdf = require('pdf-parse/lib/pdf-parse');
 
 export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
     try {

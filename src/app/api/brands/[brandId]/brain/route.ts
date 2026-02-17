@@ -25,7 +25,7 @@ export async function GET(
   return NextResponse.json(brain);
 }
 
-// PATCH /api/brands/[brandId]/brain — user corrections
+// PATCH /api/brands/[brandId]/brain — user corrections to any editable field
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ brandId: string }> }
@@ -42,34 +42,61 @@ export async function PATCH(
 
   const body = await req.json();
 
-  // Whitelist only editable fields
+  // Whitelist all editable fields (rawAnalysis and performance data are NOT editable)
   const {
+    // Voice
     toneDescriptors, sentenceStyle, vocabularyLevel, bannedWords, ctaStyle, voiceSummary,
+    // Visual
     primaryColors, secondaryColors, typography, imageStyle, compositionNotes, visualSummary,
-    products, valuePropositions, differentiators, audiences, competitors, brandSummary,
+    // Products
+    products, valuePropositions, differentiators,
+    // Basic audience & competitors
+    audiences, competitors,
+    // Strategy
+    positioningStatement, brandArchetype, brandPersonality, missionStatement, marketCategory,
+    // Deep ICP
+    icpPersonas,
+    // Content strategy
+    contentPillars, messagingHierarchy,
+    // Platform playbooks
+    platformPlaybooks,
+    // Competitive intelligence
+    competitorPositioning,
+    // Summary
+    brandSummary,
   } = body;
 
   const updated = await prisma.brandBrain.update({
     where: { brandId },
     data: {
-      ...(toneDescriptors !== undefined && { toneDescriptors }),
-      ...(sentenceStyle !== undefined && { sentenceStyle }),
-      ...(vocabularyLevel !== undefined && { vocabularyLevel }),
-      ...(bannedWords !== undefined && { bannedWords }),
-      ...(ctaStyle !== undefined && { ctaStyle }),
-      ...(voiceSummary !== undefined && { voiceSummary }),
-      ...(primaryColors !== undefined && { primaryColors }),
-      ...(secondaryColors !== undefined && { secondaryColors }),
-      ...(typography !== undefined && { typography }),
-      ...(imageStyle !== undefined && { imageStyle }),
-      ...(compositionNotes !== undefined && { compositionNotes }),
-      ...(visualSummary !== undefined && { visualSummary }),
-      ...(products !== undefined && { products }),
-      ...(valuePropositions !== undefined && { valuePropositions }),
-      ...(differentiators !== undefined && { differentiators }),
-      ...(audiences !== undefined && { audiences }),
-      ...(competitors !== undefined && { competitors }),
-      ...(brandSummary !== undefined && { brandSummary }),
+      ...(toneDescriptors         !== undefined && { toneDescriptors }),
+      ...(sentenceStyle           !== undefined && { sentenceStyle }),
+      ...(vocabularyLevel         !== undefined && { vocabularyLevel }),
+      ...(bannedWords             !== undefined && { bannedWords }),
+      ...(ctaStyle                !== undefined && { ctaStyle }),
+      ...(voiceSummary            !== undefined && { voiceSummary }),
+      ...(primaryColors           !== undefined && { primaryColors }),
+      ...(secondaryColors         !== undefined && { secondaryColors }),
+      ...(typography              !== undefined && { typography }),
+      ...(imageStyle              !== undefined && { imageStyle }),
+      ...(compositionNotes        !== undefined && { compositionNotes }),
+      ...(visualSummary           !== undefined && { visualSummary }),
+      ...(products                !== undefined && { products }),
+      ...(valuePropositions       !== undefined && { valuePropositions }),
+      ...(differentiators         !== undefined && { differentiators }),
+      ...(audiences               !== undefined && { audiences }),
+      ...(competitors             !== undefined && { competitors }),
+      ...(positioningStatement    !== undefined && { positioningStatement }),
+      ...(brandArchetype          !== undefined && { brandArchetype }),
+      ...(brandPersonality        !== undefined && { brandPersonality }),
+      ...(missionStatement        !== undefined && { missionStatement }),
+      ...(marketCategory          !== undefined && { marketCategory }),
+      ...(icpPersonas             !== undefined && { icpPersonas }),
+      ...(contentPillars          !== undefined && { contentPillars }),
+      ...(messagingHierarchy      !== undefined && { messagingHierarchy }),
+      ...(platformPlaybooks       !== undefined && { platformPlaybooks }),
+      ...(competitorPositioning   !== undefined && { competitorPositioning }),
+      ...(brandSummary            !== undefined && { brandSummary }),
     },
   });
 

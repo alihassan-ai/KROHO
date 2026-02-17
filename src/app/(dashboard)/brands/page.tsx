@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { PlusCircle, Globe, Calendar } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
+import Image from "next/image";
 
 export default async function BrandsPage() {
     const session = await auth();
@@ -59,8 +60,19 @@ export default async function BrandsPage() {
                         <Card key={brand.id} className="hover:border-primary/50 transition-colors">
                             <CardHeader>
                                 <div className="flex items-center justify-between">
-                                    <div className="h-10 w-10 rounded bg-primary text-primary-foreground flex items-center justify-center font-bold">
-                                        {brand.name[0]}
+                                    <div className="h-10 w-10 rounded overflow-hidden bg-muted flex items-center justify-center">
+                                        {brand.logoUrl ? (
+                                            <Image
+                                                src={brand.logoUrl}
+                                                alt={brand.name}
+                                                width={40}
+                                                height={40}
+                                                className="object-contain w-full h-full"
+                                                unoptimized
+                                            />
+                                        ) : (
+                                            <span className="text-sm font-bold text-primary">{brand.name[0]}</span>
+                                        )}
                                     </div>
                                     <div className={`px-2 py-1 rounded text-xs font-medium ${brand.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'
                                         }`}>

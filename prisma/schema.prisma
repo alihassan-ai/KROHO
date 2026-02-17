@@ -188,38 +188,63 @@ model BrandBrain {
   brandId String @unique
   brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
-  // Voice Profile
+  // ── Voice Profile ─────────────────────────────────────
   toneDescriptors String[] // ["playful", "professional", "bold"]
-  sentenceStyle   String? // "short and punchy" / "long and descriptive"
-  vocabularyLevel String? // "casual" / "technical" / "luxury"
+  sentenceStyle   String?  // "short and punchy" / "long and descriptive"
+  vocabularyLevel String?  // "casual" / "technical" / "luxury"
   bannedWords     String[] // words to never use
-  ctaStyle        String? // "direct" / "subtle" / "urgent"
-  voiceSummary    String? // AI-generated voice description
+  ctaStyle        String?  // "direct" / "subtle" / "urgent"
+  voiceSummary    String?  // AI-generated voice description
 
-  // Visual DNA
+  // ── Visual DNA ────────────────────────────────────────
   primaryColors    String[] // hex codes
   secondaryColors  String[]
-  typography       String? // font family preferences
-  imageStyle       String? // "photography" / "illustration" / "mixed"
-  compositionNotes String? // e.g., "minimal, lots of white space"
-  visualSummary    String? // AI-generated visual description
+  typography       String?  // font family preferences
+  imageStyle       String?  // "photography" / "illustration" / "mixed"
+  compositionNotes String?  // e.g., "minimal, lots of white space"
+  visualSummary    String?  // AI-generated visual description
 
-  // Product Knowledge
-  products          Json? // [{name, features, pricing, usp}]
+  // ── Product Knowledge ─────────────────────────────────
+  products          Json?    // [{name, features, pricing, usp}]
   valuePropositions String[]
   differentiators   String[]
 
-  // Audience
+  // ── Audience (basic) ──────────────────────────────────
   audiences Json? // [{name, demographics, painPoints, desires}]
 
-  // Competitive
+  // ── Competitive (basic) ───────────────────────────────
   competitors Json? // [{name, positioning, notes}]
 
-  // AI-Generated Summary
-  brandSummary String? // Full AI summary card
-  rawAnalysis  Json? // Raw LLM analysis output for debugging
+  // ── Strategic Foundation ──────────────────────────────
+  positioningStatement  String?  // "For [ICP], [Brand] is the [category] that [differentiation]"
+  brandArchetype        String?  // Hero, Sage, Explorer, Outlaw, Jester, Lover, Caregiver, Creator, Ruler, Magician, Everyman, Innocent
+  brandPersonality      String[] // Personality trait adjectives
+  missionStatement      String?  // Brand mission / purpose
+  marketCategory        String?  // Industry / market segment
 
-  // Performance Memory (Phase 2)
+  // ── ICP Personas (Deep) ───────────────────────────────
+  // [{id, name, title, ageRange, income, location, psychographics, goals: [], painPoints: [], buyingTriggers: [], objections: [], preferredChannels: [], mediaHabits: []}]
+  icpPersonas Json?
+
+  // ── Content Strategy ──────────────────────────────────
+  // [{name, description, percentage, topics: [], contentTypes: [], examples: []}]
+  contentPillars Json?
+  // {primaryMessage, secondaryMessages: [], proofPoints: [], emotionalBenefits: [], rationalBenefits: []}
+  messagingHierarchy Json?
+
+  // ── Platform Playbooks ────────────────────────────────
+  // {meta: {bestFormats: [], frequency, contentMix, toneNote, winningHookTypes: [], dos: [], donts: []}, tiktok: {...}, google: {...}, linkedin: {...}, email: {...}}
+  platformPlaybooks Json?
+
+  // ── Competitive Intelligence (Deep) ───────────────────
+  // [{name, website, positioning, strengths: [], weaknesses: [], ourAdvantage, differentiator}]
+  competitorPositioning Json?
+
+  // ── AI-Generated Summary ──────────────────────────────
+  brandSummary String? // Full AI summary card
+  rawAnalysis  Json?   // Raw LLM analysis output for debugging
+
+  // ── Performance Memory ────────────────────────────────
   winningPatterns   Json? // Accumulated from performance data
   hookPerformance   Json? // Which hook styles work best
   visualPerformance Json? // Which visual styles work best

@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { useParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -41,7 +41,11 @@ export default function BrandDetailPage() {
         }
     };
 
-    const [refreshInterval, setRefreshInterval] = useState<any>(null);
+    const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const stopPolling = () => {
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    };
 
     const fetchBrand = async () => {
         try {
@@ -50,13 +54,11 @@ export default function BrandDetailPage() {
             const data = await response.json();
             setBrand(data);
 
-            // Poll if analyzing
-            if (data.status === 'ONBOARDING' && !refreshInterval) {
-                const interval = setInterval(fetchBrand, 5000);
-                setRefreshInterval(interval);
-            } else if (data.status !== 'ONBOARDING' && refreshInterval) {
-                clearInterval(refreshInterval);
-                setRefreshInterval(null);
+            if (data.status === 'ONBOARDING' && !pollRef.current) {
+                // Poll every 8s while analysis is running
+                pollRef.current = setInterval(fetchBrand, 8000);
+            } else if (data.status !== 'ONBOARDING') {
+                stopPolling();
             }
         } catch (error) {
             console.error(error);
@@ -67,9 +69,7 @@ export default function BrandDetailPage() {
 
     useEffect(() => {
         fetchBrand();
-        return () => {
-            if (refreshInterval) clearInterval(refreshInterval);
-        };
+        return stopPolling;
     }, [brandId]);
 
     const handleAnalyze = async () => {

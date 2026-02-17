@@ -1,0 +1,337 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── AUTH ─────────────────────────────────────────────
+
+model User {
+  id                   String            @id @default(cuid())
+  email                String            @unique
+  name                 String?
+  image                String?
+  emailVerified        DateTime?
+  plan                 Plan              @default(STARTER)
+  stripeId             String?           @unique
+  stripeSubscriptionId String?           @unique
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
+
+  brands              Brand[]
+  campaigns           Campaign[]
+  generations         Generation[]
+  exports             Export[]
+  accounts            Account[]
+  sessions            Session[]
+  memberships         WorkspaceMember[]
+  ownedWorkspaces     Workspace[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members WorkspaceMember[]
+  brands  Brand[]
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole @default(MEMBER)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+}
+
+enum WorkspaceRole {
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+enum Plan {
+  STARTER // 3 brands, 1 user, 100 gen/mo
+  GROWTH // 10 brands, 3 users, 500 gen/mo
+  SCALE // 25 brands, 10 users, unlimited
+}
+
+// ─── BRAND BRAIN ──────────────────────────────────────
+
+model Brand {
+  id          String      @id @default(cuid())
+  userId      String
+  workspaceId String?
+  name        String
+  website     String?
+  logoUrl     String?
+  status      BrandStatus @default(ONBOARDING)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace?  @relation(fields: [workspaceId], references: [id])
+  brain     BrandBrain?
+  assets    BrandAsset[]
+  campaigns   Campaign[]
+  generations Generation[]
+}
+
+// ... existing enums ...
+
+// ─── PERFORMANCE LOGS ──────────────────────────────────
+
+model PerformanceLog {
+  id           String     @id @default(cuid())
+  generationId String
+  generation   Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+  date         DateTime   @default(now())
+  impressions  Int        @default(0)
+  clicks       Int        @default(0)
+  spend        Float      @default(0)
+  conversions  Int        @default(0)
+  revenue      Float      @default(0)
+
+  @@index([generationId, date])
+}
+
+model Generation {
+  id         String  @id @default(cuid())
+  userId     String
+  brandId    String?
+  campaignId String?
+
+  type   GenerationType
+  status GenerationStatus @default(PENDING)
+
+  // Input
+  prompt       String
+  fullPrompt   String?
+  model        String
+  parameters   Json?
+  brandContext Json?
+
+  // Output
+  result       Json?
+  outputUrl    String?
+  thumbnailUrl String?
+
+  // Metadata
+  angle    String?
+  tone     String?
+  platform String?
+  tags     String[]
+
+  // Performance
+  performanceLogs PerformanceLog[]
+  performanceData Json? // Cached aggregate {ctr, roas, etc}
+
+  // Playground state
+  isFavorited Boolean @default(false)
+  isExported  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand    Brand?    @relation(fields: [brandId], references: [id])
+  campaign Campaign? @relation(fields: [campaignId], references: [id])
+}
+
+enum BrandStatus {
+  ONBOARDING // Initial upload, AI analyzing
+  ACTIVE // Brain built, ready to use
+  ARCHIVED
+}
+
+model BrandBrain {
+  id      String @id @default(cuid())
+  brandId String @unique
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  // Voice Profile
+  toneDescriptors String[] // ["playful", "professional", "bold"]
+  sentenceStyle   String? // "short and punchy" / "long and descriptive"
+  vocabularyLevel String? // "casual" / "technical" / "luxury"
+  bannedWords     String[] // words to never use
+  ctaStyle        String? // "direct" / "subtle" / "urgent"
+  voiceSummary    String? // AI-generated voice description
+
+  // Visual DNA
+  primaryColors    String[] // hex codes
+  secondaryColors  String[]
+  typography       String? // font family preferences
+  imageStyle       String? // "photography" / "illustration" / "mixed"
+  compositionNotes String? // e.g., "minimal, lots of white space"
+  visualSummary    String? // AI-generated visual description
+
+  // Product Knowledge
+  products          Json? // [{name, features, pricing, usp}]
+  valuePropositions String[]
+  differentiators   String[]
+
+  // Audience
+  audiences Json? // [{name, demographics, painPoints, desires}]
+
+  // Competitive
+  competitors Json? // [{name, positioning, notes}]
+
+  // AI-Generated Summary
+  brandSummary String? // Full AI summary card
+  rawAnalysis  Json? // Raw LLM analysis output for debugging
+
+  // Performance Memory (Phase 2)
+  winningPatterns   Json? // Accumulated from performance data
+  hookPerformance   Json? // Which hook styles work best
+  visualPerformance Json? // Which visual styles work best
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BrandAsset {
+  id      String @id @default(cuid())
+  brandId String
+  brand   Brand  @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  type      AssetType
+  filename  String
+  url       String // Storage URL
+  mimeType  String
+  sizeBytes Int
+  metadata  Json? // Extracted metadata (colors from images, text from PDFs)
+
+  createdAt DateTime @default(now())
+}
+
+enum AssetType {
+  BRAND_GUIDELINES // PDF uploads
+  LOGO
+  PRODUCT_PHOTO
+  EXAMPLE_AD // Past creative work
+  FONT
+  OTHER
+}
+
+// ─── CAMPAIGNS ────────────────────────────────────────
+
+model Campaign {
+  id      String         @id @default(cuid())
+  brandId String
+  userId  String
+  name    String
+  status  CampaignStatus @default(DRAFT)
+
+  // Brief
+  objective     String? // awareness / consideration / conversion
+  audiences     Json? // selected audience profiles
+  platforms     String[] // ["meta", "tiktok", "google"]
+  formats       String[] // ["static", "video_script", "carousel"]
+  instructions  String? // special instructions
+  referenceUrls String[] // competitor ads or inspiration
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Sharing
+  shareToken String? @unique
+  isShared   Boolean @default(false)
+
+  brand       Brand        @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generations Generation[]
+  exports     Export[]
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+
+
+enum GenerationType {
+  COPY_HEADLINE
+  COPY_HOOK
+  COPY_BODY
+  COPY_CTA
+  COPY_SCRIPT
+  IMAGE_CONCEPT
+  IMAGE_VARIATION
+  COPY_VARIATION
+}
+
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ─── EXPORTS ──────────────────────────────────────────
+
+model Export {
+  id         String  @id @default(cuid())
+  userId     String
+  campaignId String?
+
+  name          String
+  platform      String // meta / tiktok / google / all
+  format        String // zip / pdf_presentation
+  fileUrl       String? // Download URL
+  status        ExportStatus @default(PENDING)
+  generationIds String[] // Which generations are included
+
+  createdAt DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign Campaign? @relation(fields: [campaignId], references: [id])
+}
+
+enum ExportStatus {
+  PENDING
+  PROCESSING
+  READY
+  EXPIRED
+}

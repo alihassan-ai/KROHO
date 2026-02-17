@@ -1,0 +1,1553 @@
+================================================================================
+CREATIVE OPS SAAS — MVP DEVELOPMENT BLUEPRINT
+================================================================================
+Version: 1.0
+Purpose: Hand this to Claude Code. Start building. Ship MVP in 4-6 weeks.
+Approach: Playground-first (user controls final creative, AI assists + brand context)
+================================================================================
+
+
+================================================================================
+SECTION 0: MEMORY UNIT — CORE DECISIONS (READ THIS BEFORE EVERY ACTION)
+================================================================================
+
+These are permanent decisions. Reference before building anything:
+
+PRODUCT_NAME: [TBD — pick before starting]
+PRODUCT_TYPE: Creative Operations SaaS for marketing agencies (3-20 people)
+CORE_CONCEPT: Playground for creative generation, powered by Brand Brain intelligence
+USER_CONTROLS: Final creative output — user picks models, adjusts, regenerates, decides
+AI_CONTROLS: Brand context injection, suggestions, quality checks, organization
+NOT_BUILDING: Fully automated creative pipeline. This is a playground, not a factory.
+TARGET_USER: Performance/ecom agency media buyers, creative directors, account managers
+PRICING: Starter $99/mo (3 brands), Growth $199/mo (10 brands), Scale $349/mo (25 brands)
+REVENUE_MODEL: SaaS subscriptions + productized service (use own tool for agencies)
+SELF_HOSTED_MODELS: Yes — FLUX, SDXL on RunPod. Not API-dependent for image gen.
+LLM_STRATEGY: Claude API for complex tasks, local models for simple tasks
+GPU_PROVIDER: RunPod (serverless for MVP, dedicated pods later)
+DEPLOY_TARGET: Vercel (frontend) + Railway/Render (backend) + RunPod (GPU inference)
+MVP_DEADLINE: 4-6 weeks to beta-launchable product
+PLAYGROUND_REFERENCES: ImagineArt, HiggsField — user-facing model selection + generation UI
+
+
+================================================================================
+SECTION 1: TECH STACK — EXACT TOOLS, NO ALTERNATIVES
+================================================================================
+
+FRONTEND:
+  Framework:       Next.js 14+ (App Router)
+  Language:        TypeScript
+  Styling:         Tailwind CSS + shadcn/ui components
+  State:           Zustand (simple, fast, no boilerplate)
+  Forms:           React Hook Form + Zod validation
+  File Upload:     react-dropzone
+  Image Viewer:    react-zoom-pan-pinch (for creative review)
+  Rich Text:       Tiptap (for copy editing)
+  Toast/Alerts:    Sonner
+  Icons:           Lucide React
+  Date:            date-fns
+  Charts (later):  Recharts
+
+BACKEND:
+  Runtime:         Node.js
+  Framework:       Next.js API Routes (keep it monorepo, simplest path)
+  ORM:             Prisma
+  Database:        PostgreSQL (Supabase free tier for MVP, or Railway)
+  File Storage:    Supabase Storage (or AWS S3 if you prefer)
+  Auth:            NextAuth.js v5 (Auth.js) with email magic link + Google OAuth
+  Job Queue:       BullMQ + Redis (for async generation tasks)
+  Redis:           Upstash Redis (serverless, free tier)
+  PDF Parsing:     pdf-parse (npm) + LLM for structured extraction
+  Web Scraping:    cheerio + puppeteer-core (for brand website analysis)
+  Image Processing: sharp (resize, crop, format conversion)
+  ZIP Generation:  archiver (npm)
+  Email:           Resend (transactional emails, free tier)
+
+AI / ML LAYER:
+  LLM (Primary):       Anthropic Claude API (claude-sonnet-4-5-20250929)
+  LLM (Heavy Tasks):   Anthropic Claude API (claude-opus-4-6) — brand analysis, complex reasoning
+  LLM (Cheap/Fast):    OpenRouter API → Mistral/Llama for simple variations
+  Image Gen (Quality):  FLUX.2 Dev on RunPod Serverless
+  Image Gen (Fast):     SDXL-Lightning on RunPod Serverless
+  Image Gen (Future):   Any new model — playground approach means easy to add
+  Embeddings:           Anthropic/OpenAI embeddings for Brand Brain vector search
+  Vector DB:            Supabase pgvector (built into Supabase PostgreSQL)
+
+INFRASTRUCTURE:
+  Frontend Hosting:  Vercel (free tier handles MVP traffic easily)
+  Backend Hosting:   Same Vercel (API routes colocated)
+  Database:          Supabase (PostgreSQL + Storage + pgvector + Auth backup)
+  GPU Inference:     RunPod Serverless (pay-per-request, no idle costs)
+  Redis/Queue:       Upstash Redis
+  Domain:            Cloudflare (DNS + SSL)
+  Monitoring:        Vercel Analytics + Sentry (error tracking)
+  Payments:          Stripe (subscriptions + usage tracking)
+
+DEVELOPMENT:
+  Package Manager:   pnpm
+  Monorepo:          No — single Next.js app, keep it simple
+  Linting:           ESLint + Prettier (standard Next.js config)
+  Testing:           Vitest (unit) — skip E2E for MVP
+  CI/CD:             Vercel auto-deploy from GitHub main branch
+  Environment:       .env.local for secrets
+
+
+================================================================================
+SECTION 2: PROJECT STRUCTURE
+================================================================================
+
+creative-ops/
+├── .env.local                    # All secrets
+├── .env.example                  # Template for secrets
+├── next.config.ts
+├── tailwind.config.ts
+├── prisma/
+│   ├── schema.prisma             # Database schema
+│   └── seed.ts                   # Seed data for development
+├── public/
+│   └── ...                       # Static assets
+├── src/
+│   ├── app/                      # Next.js App Router pages
+│   │   ├── layout.tsx            # Root layout (auth wrapper, providers)
+│   │   ├── page.tsx              # Landing / marketing page
+│   │   ├── (auth)/
+│   │   │   ├── login/page.tsx
+│   │   │   └── signup/page.tsx
+│   │   ├── (dashboard)/          # Authenticated routes
+│   │   │   ├── layout.tsx        # Dashboard layout (sidebar, nav)
+│   │   │   ├── page.tsx          # Dashboard home (recent activity, quick actions)
+│   │   │   ├── brands/
+│   │   │   │   ├── page.tsx      # All brands list
+│   │   │   │   ├── new/page.tsx  # Brand onboarding flow
+│   │   │   │   └── [brandId]/
+│   │   │   │       ├── page.tsx          # Brand workspace (overview)
+│   │   │   │       ├── brain/page.tsx    # Brand Brain view/edit
+│   │   │   │       ├── campaigns/
+│   │   │   │       │   ├── page.tsx          # Campaigns list
+│   │   │   │       │   ├── new/page.tsx      # New campaign brief
+│   │   │   │       │   └── [campaignId]/
+│   │   │   │       │       ├── page.tsx      # Campaign workspace
+│   │   │   │       │       └── playground/
+│   │   │   │       │           └── page.tsx  # CREATIVE PLAYGROUND (core)
+│   │   │   │       ├── assets/page.tsx   # Brand asset library
+│   │   │   │       └── performance/page.tsx  # Performance tracking (Phase 2)
+│   │   │   ├── playground/       # Quick playground (no campaign context)
+│   │   │   │   └── page.tsx
+│   │   │   ├── exports/page.tsx  # Export history
+│   │   │   └── settings/
+│   │   │       ├── page.tsx      # Account settings
+│   │   │       ├── billing/page.tsx
+│   │   │       └── team/page.tsx # Team management (Phase 3)
+│   │   └── api/
+│   │       ├── auth/[...nextauth]/route.ts
+│   │       ├── brands/
+│   │       │   ├── route.ts                  # CRUD brands
+│   │       │   └── [brandId]/
+│   │       │       ├── route.ts              # Get/update brand
+│   │       │       ├── brain/route.ts        # Brand Brain operations
+│   │       │       ├── analyze/route.ts      # Trigger brand analysis (PDF + URL)
+│   │       │       └── assets/route.ts       # Upload/manage brand assets
+│   │       ├── campaigns/
+│   │       │   ├── route.ts                  # CRUD campaigns
+│   │       │   └── [campaignId]/
+│   │       │       ├── route.ts
+│   │       │       ├── brief/route.ts
+│   │       │       └── creatives/route.ts    # Generated creatives for campaign
+│   │       ├── generate/
+│   │       │   ├── copy/route.ts             # Copy generation endpoint
+│   │       │   ├── image/route.ts            # Image generation endpoint
+│   │       │   ├── variations/route.ts       # Variation generation
+│   │       │   └── status/[jobId]/route.ts   # Check generation job status
+│   │       ├── export/
+│   │       │   ├── package/route.ts          # Create export package
+│   │       │   └── download/[exportId]/route.ts
+│   │       ├── webhooks/
+│   │       │   ├── stripe/route.ts
+│   │       │   └── runpod/route.ts           # RunPod job completion callbacks
+│   │       └── health/route.ts
+│   ├── components/
+│   │   ├── ui/                   # shadcn/ui components
+│   │   ├── layout/
+│   │   │   ├── Sidebar.tsx
+│   │   │   ├── TopNav.tsx
+│   │   │   └── BrandSwitcher.tsx
+│   │   ├── brand/
+│   │   │   ├── BrandOnboardingWizard.tsx
+│   │   │   ├── BrandBrainCard.tsx
+│   │   │   ├── BrandProfileEditor.tsx
+│   │   │   └── AssetUploader.tsx
+│   │   ├── campaign/
+│   │   │   ├── CampaignBriefForm.tsx
+│   │   │   ├── CampaignCard.tsx
+│   │   │   └── CampaignWorkspace.tsx
+│   │   ├── playground/           # THE CORE UI
+│   │   │   ├── PlaygroundLayout.tsx       # Split view: controls left, canvas right
+│   │   │   ├── ModelSelector.tsx          # User picks which model to use
+│   │   │   ├── CopyPlayground.tsx         # Copy generation playground
+│   │   │   ├── ImagePlayground.tsx        # Image generation playground
+│   │   │   ├── PromptBuilder.tsx          # Smart prompt builder (brand-aware)
+│   │   │   ├── GenerationControls.tsx     # Parameters, style, etc.
+│   │   │   ├── OutputGallery.tsx          # Generated results grid
+│   │   │   ├── OutputCard.tsx             # Single generated item
+│   │   │   ├── BrandContextPanel.tsx      # Shows active brand context
+│   │   │   ├── VariationPanel.tsx         # Quick variation controls
+│   │   │   └── SaveToExport.tsx           # Save selected outputs to campaign
+│   │   ├── export/
+│   │   │   ├── ExportBuilder.tsx
+│   │   │   ├── FormatSelector.tsx
+│   │   │   └── PlatformPreview.tsx
+│   │   └── shared/
+│   │       ├── LoadingStates.tsx
+│   │       ├── EmptyStates.tsx
+│   │       └── FilePreview.tsx
+│   ├── lib/
+│   │   ├── prisma.ts             # Prisma client singleton
+│   │   ├── auth.ts               # Auth configuration
+│   │   ├── stripe.ts             # Stripe client + helpers
+│   │   ├── redis.ts              # Redis/BullMQ connection
+│   │   ├── storage.ts            # File storage helpers (Supabase Storage)
+│   │   └── utils.ts              # General utilities
+│   ├── services/                 # Business logic layer
+│   │   ├── brand-brain/
+│   │   │   ├── analyzer.ts       # PDF parsing + website scraping + LLM analysis
+│   │   │   ├── profile-builder.ts # Builds structured brand profile from raw data
+│   │   │   ├── context-assembler.ts # Assembles brand context for generation
+│   │   │   └── embeddings.ts     # Brand data embedding for vector search
+│   │   ├── generation/
+│   │   │   ├── orchestrator.ts   # THE CORE — routes requests to correct model
+│   │   │   ├── copy-generator.ts # Copy generation logic
+│   │   │   ├── image-generator.ts # Image generation logic (RunPod integration)
+│   │   │   ├── prompt-builder.ts  # Builds prompts from brand context + user input
+│   │   │   ├── model-router.ts    # Decides which model handles what
+│   │   │   └── quality-checker.ts # Post-generation brand compliance check
+│   │   ├── export/
+│   │   │   ├── packager.ts       # Creates platform-ready export packages
+│   │   │   ├── resizer.ts        # Image resizing for different platforms
+│   │   │   └── namer.ts          # Naming convention generator
+│   │   └── platforms/
+│   │       ├── runpod.ts         # RunPod Serverless API client
+│   │       ├── anthropic.ts      # Claude API client wrapper
+│   │       └── openrouter.ts     # OpenRouter API client (cheap LLM access)
+│   ├── hooks/
+│   │   ├── useGeneration.ts      # Generation state + polling
+│   │   ├── useBrandContext.ts    # Current brand context hook
+│   │   └── usePlayground.ts     # Playground state management
+│   ├── stores/
+│   │   ├── playground-store.ts   # Zustand store for playground state
+│   │   └── brand-store.ts        # Current active brand
+│   └── types/
+│       ├── brand.ts
+│       ├── campaign.ts
+│       ├── generation.ts
+│       └── platform-specs.ts     # Ad platform format specifications
+└── workers/
+    └── generation-worker.ts      # BullMQ worker for async generation jobs
+
+
+================================================================================
+SECTION 3: DATABASE SCHEMA (PRISMA)
+================================================================================
+
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── AUTH ─────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  plan          Plan      @default(STARTER)
+  stripeId      String?   @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  brands        Brand[]
+  campaigns     Campaign[]
+  generations   Generation[]
+  exports       Export[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum Plan {
+  STARTER    // 3 brands, 1 user, 100 gen/mo
+  GROWTH     // 10 brands, 3 users, 500 gen/mo
+  SCALE      // 25 brands, 10 users, unlimited
+}
+
+// ─── BRAND BRAIN ──────────────────────────────────────
+
+model Brand {
+  id            String   @id @default(cuid())
+  userId        String
+  name          String
+  website       String?
+  logoUrl       String?
+  status        BrandStatus @default(ONBOARDING)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brain         BrandBrain?
+  assets        BrandAsset[]
+  campaigns     Campaign[]
+  generations   Generation[]
+}
+
+enum BrandStatus {
+  ONBOARDING    // Initial upload, AI analyzing
+  ACTIVE        // Brain built, ready to use
+  ARCHIVED
+}
+
+model BrandBrain {
+  id            String   @id @default(cuid())
+  brandId       String   @unique
+  brand         Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  // Voice Profile
+  toneDescriptors     String[]      // ["playful", "professional", "bold"]
+  sentenceStyle       String?       // "short and punchy" / "long and descriptive"
+  vocabularyLevel     String?       // "casual" / "technical" / "luxury"
+  bannedWords         String[]      // words to never use
+  ctaStyle            String?       // "direct" / "subtle" / "urgent"
+  voiceSummary        String?       // AI-generated voice description
+
+  // Visual DNA
+  primaryColors       String[]      // hex codes
+  secondaryColors     String[]
+  typography          String?       // font family preferences
+  imageStyle          String?       // "photography" / "illustration" / "mixed"
+  compositionNotes    String?       // e.g., "minimal, lots of white space"
+  visualSummary       String?       // AI-generated visual description
+
+  // Product Knowledge
+  products            Json?         // [{name, features, pricing, usp}]
+  valuePropositions   String[]
+  differentiators     String[]
+
+  // Audience
+  audiences           Json?         // [{name, demographics, painPoints, desires}]
+
+  // Competitive
+  competitors         Json?         // [{name, positioning, notes}]
+
+  // AI-Generated Summary
+  brandSummary        String?       // Full AI summary card
+  rawAnalysis         Json?         // Raw LLM analysis output for debugging
+
+  // Performance Memory (Phase 2)
+  winningPatterns     Json?         // Accumulated from performance data
+  hookPerformance     Json?         // Which hook styles work best
+  visualPerformance   Json?         // Which visual styles work best
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model BrandAsset {
+  id            String   @id @default(cuid())
+  brandId       String
+  brand         Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  type          AssetType
+  filename      String
+  url           String          // Storage URL
+  mimeType      String
+  sizeBytes     Int
+  metadata      Json?           // Extracted metadata (colors from images, text from PDFs)
+
+  createdAt     DateTime @default(now())
+}
+
+enum AssetType {
+  BRAND_GUIDELINES    // PDF uploads
+  LOGO
+  PRODUCT_PHOTO
+  EXAMPLE_AD          // Past creative work
+  FONT
+  OTHER
+}
+
+// ─── CAMPAIGNS ────────────────────────────────────────
+
+model Campaign {
+  id            String   @id @default(cuid())
+  brandId       String
+  userId        String
+  name          String
+  status        CampaignStatus @default(DRAFT)
+
+  // Brief
+  objective     String?         // awareness / consideration / conversion
+  audiences     Json?           // selected audience profiles
+  platforms     String[]        // ["meta", "tiktok", "google"]
+  formats       String[]        // ["static", "video_script", "carousel"]
+  instructions  String?         // special instructions
+  referenceUrls String[]        // competitor ads or inspiration
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  brand         Brand    @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  generations   Generation[]
+  exports       Export[]
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  ARCHIVED
+}
+
+// ─── GENERATION (Playground Output) ───────────────────
+
+model Generation {
+  id            String   @id @default(cuid())
+  userId        String
+  brandId       String?
+  campaignId    String?
+
+  type          GenerationType
+  status        GenerationStatus @default(PENDING)
+
+  // Input
+  prompt        String          // User's prompt or auto-built prompt
+  fullPrompt    String?         // Full prompt with brand context injected
+  model         String          // Which model was used
+  parameters    Json?           // Generation parameters (steps, cfg, size, etc.)
+  brandContext  Json?           // Snapshot of brand context used
+
+  // Output
+  result        Json?           // Generated content (text array or image URLs)
+  outputUrl     String?         // For images: storage URL
+  thumbnailUrl  String?         // For images: thumbnail
+
+  // Metadata
+  angle         String?         // pain_point / benefit / social_proof / etc.
+  tone          String?         // aspirational / humorous / direct / etc.
+  platform      String?         // meta / tiktok / google / etc.
+  tags          String[]
+
+  // Performance (Phase 2)
+  performanceData Json?         // {ctr, cpa, roas, impressions}
+
+  // Playground state
+  isFavorited   Boolean  @default(false)
+  isExported    Boolean  @default(false)
+
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand         Brand?   @relation(fields: [brandId], references: [id])
+  campaign      Campaign? @relation(fields: [campaignId], references: [id])
+}
+
+enum GenerationType {
+  COPY_HEADLINE
+  COPY_HOOK
+  COPY_BODY
+  COPY_CTA
+  COPY_SCRIPT
+  IMAGE_CONCEPT
+  IMAGE_VARIATION
+  COPY_VARIATION
+}
+
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ─── EXPORTS ──────────────────────────────────────────
+
+model Export {
+  id            String   @id @default(cuid())
+  userId        String
+  campaignId    String?
+
+  name          String
+  platform      String          // meta / tiktok / google / all
+  format        String          // zip / pdf_presentation
+  fileUrl       String?         // Download URL
+  status        ExportStatus @default(PENDING)
+  generationIds String[]        // Which generations are included
+
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign      Campaign? @relation(fields: [campaignId], references: [id])
+}
+
+enum ExportStatus {
+  PENDING
+  PROCESSING
+  READY
+  EXPIRED
+}
+
+
+================================================================================
+SECTION 4: CORE SERVICES — IMPLEMENTATION DETAILS
+================================================================================
+
+────────────────────────────────────────────
+4.1 BRAND BRAIN ANALYZER (services/brand-brain/analyzer.ts)
+────────────────────────────────────────────
+
+INPUT: Brand PDF files + website URL + any uploaded assets
+OUTPUT: Structured BrandBrain record
+
+FLOW:
+1. User uploads files → stored in Supabase Storage
+2. PDF parsing:
+   - Use pdf-parse to extract raw text
+   - Send extracted text to Claude Opus with structured extraction prompt
+   - Prompt asks for: tone descriptors, color mentions, typography, banned terms,
+     audience descriptions, product info, competitive positioning
+   - Return structured JSON matching BrandBrain schema
+
+3. Website scraping:
+   - Use puppeteer-core to load website (use @sparticuz/chromium for serverless)
+   - Extract: meta tags, OG tags, page text, CSS computed styles
+   - Use cheerio to parse HTML for color values, font-family declarations
+   - Take screenshot for visual reference
+   - Send extracted data to Claude for analysis
+
+4. Image analysis:
+   - For uploaded example ads: use Claude's vision capability
+   - Send images to Claude with prompt: "Analyze this ad creative. Extract:
+     color palette, composition style, typography style, image treatment,
+     emotional tone, CTA style"
+   - Aggregate across multiple example ads to build visual DNA
+
+5. Merge all extracted data into single BrandBrain record
+6. Generate brandSummary using Claude — a human-readable 1-paragraph summary
+7. Save to database
+8. Generate embeddings of brand data for future vector search
+
+KEY PROMPT (Brand PDF Analysis):
+```
+You are analyzing brand guidelines for a marketing agency tool.
+Extract the following in strict JSON format:
+{
+  "toneDescriptors": ["array of 3-5 adjectives describing brand voice"],
+  "sentenceStyle": "short/medium/long",
+  "vocabularyLevel": "casual/professional/technical/luxury",
+  "bannedWords": ["any words or phrases to avoid"],
+  "ctaStyle": "direct/subtle/urgent/playful",
+  "primaryColors": ["hex codes"],
+  "secondaryColors": ["hex codes"],
+  "typography": "font family or style description",
+  "imageStyle": "photography/illustration/mixed/ugc",
+  "products": [{"name": "", "features": [], "usp": ""}],
+  "valuePropositions": ["key value props"],
+  "targetAudiences": [{"name": "", "demographics": "", "painPoints": [], "desires": []}],
+  "competitors": [{"name": "", "positioning": ""}]
+}
+If information is not found in the document, use null.
+```
+
+────────────────────────────────────────────
+4.2 GENERATION ORCHESTRATOR (services/generation/orchestrator.ts)
+────────────────────────────────────────────
+
+This is the brain of the product. Every generation request flows through here.
+
+FLOW:
+1. Receive generation request from API route
+2. Load brand context (if brandId provided)
+3. Build full prompt using prompt-builder
+4. Route to correct model via model-router
+5. Submit job to BullMQ queue
+6. Worker picks up job, calls appropriate AI service
+7. On completion: run quality check, save result, notify client via polling/SSE
+
+MODEL ROUTING LOGIC (services/generation/model-router.ts):
+```
+function selectModel(request):
+  if request.type is IMAGE:
+    if request.quality == "hero" or request.quality == "high":
+      return "flux-dev"        // RunPod: FLUX.2 Dev
+    if request.quality == "fast" or request.quality == "draft":
+      return "sdxl-lightning"   // RunPod: SDXL-Lightning
+    if user selected specific model:
+      return user_selected_model  // PLAYGROUND: user picks
+    return "flux-dev"           // default
+
+  if request.type is COPY:
+    if request.complexity == "brand_voice" or request.needsNuance:
+      return "claude-sonnet"    // Anthropic API
+    if request.complexity == "simple_variation":
+      return "mistral-7b"      // OpenRouter (cheap)
+    if request.complexity == "brand_analysis":
+      return "claude-opus"      // Anthropic API
+    if user selected specific model:
+      return user_selected_model  // PLAYGROUND: user picks
+    return "claude-sonnet"      // default
+```
+
+────────────────────────────────────────────
+4.3 PROMPT BUILDER (services/generation/prompt-builder.ts)
+────────────────────────────────────────────
+
+Takes user's simple input and enriches with brand context.
+
+COPY PROMPT TEMPLATE:
+```
+You are writing ad copy for {brand.name}.
+
+BRAND VOICE:
+- Tone: {brain.toneDescriptors.join(', ')}
+- Style: {brain.sentenceStyle}
+- Vocabulary: {brain.vocabularyLevel}
+- CTA Style: {brain.ctaStyle}
+- NEVER use these words: {brain.bannedWords.join(', ')}
+
+PRODUCT:
+{brain.products[relevant].name}: {brain.products[relevant].usp}
+Value props: {brain.valuePropositions.join(', ')}
+
+TARGET AUDIENCE:
+{campaign.audiences[0].name}: {campaign.audiences[0].painPoints.join(', ')}
+
+PLATFORM: {campaign.platforms[0]} (optimize for this platform's format)
+OBJECTIVE: {campaign.objective}
+
+TASK: Generate {count} {type} variations.
+For each, use a different angle:
+- Pain point angle
+- Benefit angle
+- Social proof angle
+- Urgency angle
+- Curiosity angle
+
+USER'S DIRECTION: {user's custom prompt/instructions}
+
+Format each as JSON: {"text": "", "angle": "", "tone": "", "platform": ""}
+```
+
+IMAGE PROMPT TEMPLATE:
+```
+{user's description or auto-generated concept}
+
+Style requirements:
+- Color palette: primarily {brain.primaryColors.join(', ')}
+- Image style: {brain.imageStyle}
+- Composition: {brain.compositionNotes}
+- {platform-specific composition guidance}
+
+Do NOT include: {any brand-specific visual restrictions}
+```
+
+────────────────────────────────────────────
+4.4 RUNPOD INTEGRATION (services/platforms/runpod.ts)
+────────────────────────────────────────────
+
+SETUP:
+- RunPod Serverless endpoint for FLUX.2 Dev
+- RunPod Serverless endpoint for SDXL-Lightning
+- Use official RunPod Node.js SDK or direct HTTP
+
+ENDPOINTS TO CREATE ON RUNPOD:
+1. flux-dev-endpoint:
+   - Docker image: runpod/worker-comfy or custom with FLUX.2 Dev loaded
+   - GPU: A100 40GB (or A40 for cheaper)
+   - Idle timeout: 0 (serverless — cold start is fine for MVP)
+   - Max workers: 2 (scale as needed)
+
+2. sdxl-lightning-endpoint:
+   - Docker image: similar, with SDXL-Lightning checkpoint
+   - GPU: A40 or RTX 4090 (SDXL is lighter)
+   - Same serverless config
+
+API CALL PATTERN:
+```typescript
+async function generateImage(params: {
+  prompt: string
+  model: "flux-dev" | "sdxl-lightning"
+  width: number
+  height: number
+  steps?: number
+  seed?: number
+}) {
+  const endpointId = params.model === "flux-dev"
+    ? process.env.RUNPOD_FLUX_ENDPOINT
+    : process.env.RUNPOD_SDXL_ENDPOINT
+
+  // Submit async job
+  const { id: jobId } = await runpod.run(endpointId, {
+    input: {
+      prompt: params.prompt,
+      width: params.width,
+      height: params.height,
+      num_inference_steps: params.steps || (params.model === "flux-dev" ? 28 : 4),
+      seed: params.seed || Math.floor(Math.random() * 2147483647),
+    }
+  })
+
+  // Poll for completion (or use webhook)
+  return jobId
+}
+
+async function checkJob(jobId: string) {
+  const status = await runpod.status(endpointId, jobId)
+  if (status.status === "COMPLETED") {
+    // status.output contains base64 image or URL
+    // Upload to Supabase Storage, return URL
+  }
+  return status
+}
+```
+
+────────────────────────────────────────────
+4.5 EXPORT PACKAGER (services/export/packager.ts)
+────────────────────────────────────────────
+
+PLATFORM SPECS (types/platform-specs.ts):
+```typescript
+const PLATFORM_SPECS = {
+  meta: {
+    feed_square:    { width: 1080, height: 1080, name: "Feed Square" },
+    feed_landscape: { width: 1200, height: 628, name: "Feed Landscape" },
+    story:          { width: 1080, height: 1920, name: "Story/Reel" },
+    carousel:       { width: 1080, height: 1080, name: "Carousel" },
+  },
+  tiktok: {
+    feed:           { width: 1080, height: 1920, name: "Feed" },
+    spark_ad:       { width: 1080, height: 1920, name: "Spark Ad" },
+  },
+  google: {
+    responsive_sq:  { width: 1200, height: 1200, name: "Responsive Square" },
+    responsive_ls:  { width: 1200, height: 628, name: "Responsive Landscape" },
+    responsive_pt:  { width: 960, height: 1200, name: "Responsive Portrait" },
+  },
+  linkedin: {
+    sponsored:      { width: 1200, height: 627, name: "Sponsored Content" },
+    message_ad:     { width: 300, height: 250, name: "Message Ad" },
+  },
+  youtube: {
+    thumbnail:      { width: 1280, height: 720, name: "Thumbnail" },
+    bumper:         { width: 1920, height: 1080, name: "Bumper Ad" },
+  },
+}
+```
+
+EXPORT FLOW:
+1. User selects creatives (copy + images) from playground
+2. Selects target platforms
+3. System auto-resizes images to all selected platform specs using sharp
+4. Packages copy + images into folder structure:
+   ```
+   Export_BrandName_CampaignName_Date/
+   ├── Meta/
+   │   ├── Feed_Square/
+   │   │   ├── BrandName_Hook1_PainPoint_v1.png
+   │   │   └── BrandName_Hook2_Benefit_v1.png
+   │   └── Story/
+   │       └── ...
+   ├── TikTok/
+   │   └── Feed/
+   │       └── ...
+   ├── copy.csv          # All copy variations in spreadsheet format
+   └── creative_brief.pdf # Summary of what was generated
+   ```
+5. ZIP and upload to Supabase Storage
+6. Return download link
+
+
+================================================================================
+SECTION 5: THE PLAYGROUND — CORE UI SPECIFICATION
+================================================================================
+
+This is what makes you different from automated generators. The user is in control.
+
+────────────────────────────────────────────
+5.1 PLAYGROUND LAYOUT
+────────────────────────────────────────────
+
+┌─────────────────────────────────────────────────────────────────┐
+│  Brand: [ClientX ▾]  │  Campaign: [Summer Sale ▾]  │  [Export] │
+├──────────────────────┬──────────────────────────────────────────┤
+│                      │                                          │
+│  CONTROL PANEL       │           OUTPUT CANVAS                  │
+│  (Left sidebar)      │           (Main area)                    │
+│                      │                                          │
+│  ┌──────────────┐    │   ┌──────┐ ┌──────┐ ┌──────┐           │
+│  │ Generation    │    │   │      │ │      │ │      │           │
+│  │ Type:         │    │   │ Gen  │ │ Gen  │ │ Gen  │           │
+│  │ ○ Copy        │    │   │  1   │ │  2   │ │  3   │           │
+│  │ ● Image       │    │   │      │ │      │ │      │           │
+│  │ ○ Variation   │    │   └──────┘ └──────┘ └──────┘           │
+│  └──────────────┘    │   ┌──────┐ ┌──────┐ ┌──────┐           │
+│                      │   │      │ │      │ │      │           │
+│  ┌──────────────┐    │   │ Gen  │ │ Gen  │ │ Gen  │           │
+│  │ Model:        │    │   │  4   │ │  5   │ │  6   │           │
+│  │ [FLUX.2 Dev▾] │    │   │      │ │      │ │      │           │
+│  │               │    │   └──────┘ └──────┘ └──────┘           │
+│  │ Models:       │    │                                          │
+│  │ • FLUX.2 Dev  │    │   Each card: [♥ Fave] [✏ Edit] [↗ Vary]│
+│  │ • SDXL-Light  │    │              [📋 Copy prompt] [💾 Save] │
+│  │ • [More soon] │    │                                          │
+│  └──────────────┘    │                                          │
+│                      │                                          │
+│  ┌──────────────┐    │  ─────────────────────────────────────── │
+│  │ Prompt:       │    │  BRAND CONTEXT (collapsible bottom bar) │
+│  │ ┌──────────┐  │    │  Voice: Playful, bold │ Colors: #FF5733 │
+│  │ │          │  │    │  Audience: Young pros │ Don't use: "cheap"│
+│  │ │ [Smart   │  │    │  ─────────────────────────────────────── │
+│  │ │  prompt  │  │    │                                          │
+│  │ │  area]   │  │    │                                          │
+│  │ └──────────┘  │    │                                          │
+│  │ [✨ Enhance]  │    │                                          │
+│  │ [🧠 Use Brain]│    │                                          │
+│  └──────────────┘    │                                          │
+│                      │                                          │
+│  ┌──────────────┐    │                                          │
+│  │ Parameters:   │    │                                          │
+│  │ Size: [1:1 ▾] │    │                                          │
+│  │ Count: [6]    │    │                                          │
+│  │ Steps: [28]   │    │                                          │
+│  │ Seed: [rand]  │    │                                          │
+│  └──────────────┘    │                                          │
+│                      │                                          │
+│  [🚀 GENERATE]       │                                          │
+│                      │                                          │
+├──────────────────────┴──────────────────────────────────────────┤
+│  Generation History: [Gen 1] [Gen 2] [Gen 3] [Gen 4]  ...      │
+└─────────────────────────────────────────────────────────────────┘
+
+────────────────────────────────────────────
+5.2 KEY PLAYGROUND INTERACTIONS
+────────────────────────────────────────────
+
+MODEL SELECTOR:
+- Dropdown showing all supported models
+- For images: FLUX.2 Dev, SDXL-Lightning, [future models easy to add]
+- For copy: Claude Sonnet, Claude Opus, Mistral 7B, [future models]
+- Each model shows: name, speed indicator (⚡fast / 🎨quality), brief description
+- User picks. This is the playground philosophy.
+
+"USE BRAIN" BUTTON:
+- When clicked: auto-injects brand context into the prompt
+- Adds brand colors, tone, audience, product knowledge
+- User can see what was injected and edit before generating
+- This is the bridge between playground freedom and brand intelligence
+
+"ENHANCE" BUTTON:
+- Takes user's rough prompt
+- Sends to Claude with: "Improve this image generation prompt for [model].
+  Make it more detailed and specific while preserving the user's intent.
+  Current brand context: {brandBrain summary}"
+- Returns enhanced prompt user can review/edit before generating
+
+GENERATION FLOW (User POV):
+1. Select brand (optional — can generate without brand context)
+2. Select model from dropdown
+3. Type prompt (or click "Use Brain" to auto-fill with brand-aware prompt)
+4. Optionally click "Enhance" to improve prompt
+5. Set parameters (size, count, steps)
+6. Click Generate
+7. See loading state with progress
+8. Results appear in gallery grid
+9. Favorite, edit prompt, regenerate, create variations, save to campaign
+
+COPY PLAYGROUND:
+- Same layout but output is text cards instead of images
+- Each card shows: the copy text, labeled angle, tone, platform
+- Click to edit inline
+- "Regenerate this one" button per card
+- "More like this" button → generates variations of that specific copy
+- Bulk select → export as CSV or copy to clipboard
+
+VARIATION FROM RESULT:
+- Click "Vary" on any generated image
+- Opens variation panel:
+  - Seed lock (keep composition, change details)
+  - Style transfer (apply different model/style to same concept)
+  - Prompt tweak (edit prompt, regenerate)
+  - Platform reformat (same image, different aspect ratio)
+
+
+================================================================================
+SECTION 6: API ROUTES — COMPLETE SPECIFICATION
+================================================================================
+
+POST /api/brands
+  Body: { name, website? }
+  Auth: Required
+  Action: Create brand, return brandId
+  Plan check: Count brands vs plan limit
+
+POST /api/brands/[brandId]/analyze
+  Body: { assetIds: string[] }  // IDs of uploaded PDFs/images
+  Auth: Required (brand owner)
+  Action: Trigger brand analysis job
+  Flow: Queue BullMQ job → worker runs analyzer → updates BrandBrain
+  Response: { jobId } (poll for completion)
+
+GET /api/brands/[brandId]/brain
+  Auth: Required (brand owner)
+  Response: Full BrandBrain record
+
+PATCH /api/brands/[brandId]/brain
+  Body: Partial<BrandBrain>
+  Auth: Required (brand owner)
+  Action: User corrections to AI-generated brain
+
+POST /api/brands/[brandId]/assets
+  Body: FormData with files
+  Auth: Required (brand owner)
+  Action: Upload to Supabase Storage, create BrandAsset records
+
+POST /api/campaigns
+  Body: { brandId, name, objective?, platforms?, formats?, instructions? }
+  Auth: Required
+  Action: Create campaign with brief
+
+POST /api/generate/copy
+  Body: {
+    brandId?: string,
+    campaignId?: string,
+    type: "headline" | "hook" | "body" | "cta" | "script",
+    prompt: string,
+    model: string,
+    count: number,
+    angle?: string,
+    tone?: string,
+    platform?: string,
+    useBrandContext: boolean
+  }
+  Auth: Required
+  Plan check: generation count vs monthly limit
+  Action: Queue generation job
+  Response: { jobId }
+
+POST /api/generate/image
+  Body: {
+    brandId?: string,
+    campaignId?: string,
+    prompt: string,
+    model: "flux-dev" | "sdxl-lightning",
+    width: number,
+    height: number,
+    count: number,
+    steps?: number,
+    seed?: number,
+    useBrandContext: boolean
+  }
+  Auth: Required
+  Plan check: generation count vs monthly limit
+  Action: Queue image generation job
+  Response: { jobId }
+
+GET /api/generate/status/[jobId]
+  Auth: Required
+  Response: { status, progress?, results? }
+  Poll this until status === "COMPLETED"
+
+POST /api/generate/variations
+  Body: {
+    sourceGenerationId: string,
+    variationType: "seed_lock" | "style_transfer" | "prompt_tweak" | "reformat",
+    params: { ... }
+  }
+  Auth: Required
+  Action: Generate variations of existing output
+
+POST /api/export/package
+  Body: {
+    campaignId?: string,
+    generationIds: string[],
+    platforms: string[],
+    format: "zip" | "pdf"
+  }
+  Auth: Required
+  Action: Build export package, return download URL
+
+GET /api/export/download/[exportId]
+  Auth: Required
+  Action: Redirect to signed download URL
+
+
+================================================================================
+SECTION 7: ENVIRONMENT VARIABLES
+================================================================================
+
+# .env.local
+
+# Database
+DATABASE_URL="postgresql://..."
+
+# Auth
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="generate-random-secret"
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+
+# Supabase (Storage + optional auth backup)
+NEXT_PUBLIC_SUPABASE_URL=""
+NEXT_PUBLIC_SUPABASE_ANON_KEY=""
+SUPABASE_SERVICE_ROLE_KEY=""
+
+# AI APIs
+ANTHROPIC_API_KEY=""
+OPENROUTER_API_KEY=""
+
+# RunPod
+RUNPOD_API_KEY=""
+RUNPOD_FLUX_ENDPOINT_ID=""
+RUNPOD_SDXL_ENDPOINT_ID=""
+
+# Redis (Upstash)
+UPSTASH_REDIS_REST_URL=""
+UPSTASH_REDIS_REST_TOKEN=""
+
+# Stripe
+STRIPE_SECRET_KEY=""
+STRIPE_WEBHOOK_SECRET=""
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=""
+
+# Resend (email)
+RESEND_API_KEY=""
+
+# App
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+
+
+================================================================================
+SECTION 8: BUILD ORDER — WEEK BY WEEK EXECUTION PLAN
+================================================================================
+
+────────────────────────────────────────────
+WEEK 1: Foundation + Auth + Brand CRUD
+────────────────────────────────────────────
+Day 1-2:
+  - npx create-next-app@latest with TypeScript, Tailwind, App Router
+  - Install all dependencies (see Section 1)
+  - Set up Prisma + Supabase PostgreSQL connection
+  - Define full schema (Section 3), run prisma migrate
+  - Set up shadcn/ui: npx shadcn@latest init, add core components
+  - Set up NextAuth with email magic link + Google OAuth
+
+Day 3-4:
+  - Dashboard layout (sidebar, top nav, brand switcher)
+  - Brands CRUD: list, create, view
+  - File upload to Supabase Storage (brand assets)
+  - Brand workspace page (shell)
+
+Day 5:
+  - Brand onboarding flow:
+    1. Name + website URL
+    2. Upload brand guidelines PDF
+    3. Upload example ads/logos/product photos
+    4. Trigger analysis (placeholder for now)
+  - Brand asset gallery view
+
+────────────────────────────────────────────
+WEEK 2: Brand Brain + Anthropic Integration
+────────────────────────────────────────────
+Day 1-2:
+  - Implement brand-brain/analyzer.ts
+  - PDF parsing → Claude structured extraction
+  - Website scraping → color/font/meta extraction
+  - Image analysis via Claude vision
+  - Merge into BrandBrain record
+
+Day 3-4:
+  - Brand Brain view/edit page
+  - BrandSummaryCard component (shows AI analysis, user can edit)
+  - Brand context assembler (builds prompt context from brain)
+  - BullMQ setup: Redis connection, analysis worker
+
+Day 5:
+  - Test full flow: upload PDF → analyze → view brain → edit corrections
+  - Polish onboarding UX
+
+────────────────────────────────────────────
+WEEK 3: Playground — Copy Generation
+────────────────────────────────────────────
+Day 1-2:
+  - PlaygroundLayout component (split panel)
+  - ControlPanel: generation type selector, model selector, prompt area
+  - Anthropic API integration (services/platforms/anthropic.ts)
+  - OpenRouter integration for cheap models
+  - Copy generation endpoint (/api/generate/copy)
+  - Prompt builder with brand context injection
+
+Day 3-4:
+  - OutputGallery for copy results
+  - CopyCard component (edit inline, favorite, regenerate)
+  - "Use Brain" button — auto-injects brand context
+  - "Enhance" button — prompt improvement via Claude
+  - Generation job queue + polling for status
+
+Day 5:
+  - Angle/tone labeling
+  - Bulk select + copy to clipboard
+  - Generation history (bottom bar)
+  - Test full copy flow with brand context
+
+────────────────────────────────────────────
+WEEK 4: Playground — Image Generation
+────────────────────────────────────────────
+Day 1-2:
+  - RunPod Serverless setup:
+    - Deploy FLUX.2 Dev endpoint
+    - Deploy SDXL-Lightning endpoint
+    - Test direct API calls
+  - services/platforms/runpod.ts implementation
+  - Image generation endpoint (/api/generate/image)
+
+Day 3-4:
+  - ImagePlayground component
+  - ModelSelector with model descriptions + speed indicators
+  - Image output gallery (grid with zoom)
+  - Image generation parameters (size presets, steps, seed)
+  - Brand context injection for image prompts
+
+Day 5:
+  - Variation from result (seed lock, prompt tweak)
+  - Favorite/save to campaign
+  - Generation history with image thumbnails
+  - Test full image flow
+
+────────────────────────────────────────────
+WEEK 5: Campaigns + Export
+────────────────────────────────────────────
+Day 1-2:
+  - Campaign CRUD (create, list, view)
+  - Campaign brief form (objective, audience, platform, formats)
+  - Campaign workspace → link to playground with campaign context
+  - Generations associated with campaigns
+
+Day 3:
+  - Export packager:
+    - Image resizing via sharp for all platform specs
+    - Folder structure generation
+    - ZIP creation with archiver
+    - Upload to Supabase Storage
+
+Day 4:
+  - Export UI: select creatives, pick platforms, generate package
+  - Download link delivery
+  - Copy export as CSV
+  - Naming convention: Brand_Campaign_Platform_Angle_V1
+
+Day 5:
+  - Campaign overview: see all generations, favorites, exports
+  - Polish campaign workflow
+
+────────────────────────────────────────────
+WEEK 6: Stripe + Polish + Beta Launch
+────────────────────────────────────────────
+Day 1-2:
+  - Stripe integration:
+    - Product/price setup (3 tiers)
+    - Checkout session creation
+    - Webhook handling (subscription events)
+    - Plan enforcement (brand limits, generation limits)
+  - Settings page: account, billing portal link
+
+Day 3-4:
+  - Usage tracking (generations per month, brands per account)
+  - Loading states, error states, empty states
+  - Mobile-responsive layout fixes
+  - Performance: image lazy loading, pagination
+  - Landing page (simple: hero, features, pricing, CTA)
+
+Day 5:
+  - Deploy to Vercel production
+  - Domain setup via Cloudflare
+  - Sentry error tracking
+  - Final testing of full flow:
+    Brand onboard → Brain analysis → Campaign → Playground → Generate → Export
+  - Invite first beta users
+
+
+================================================================================
+SECTION 9: RUNPOD SERVERLESS SETUP GUIDE
+================================================================================
+
+You know RunPod well, but here's the exact setup for this project:
+
+OPTION A: Use existing RunPod templates (fastest)
+  - Search RunPod templates for "FLUX" or "stable-diffusion"
+  - Many community templates exist with ComfyUI or A1111 pre-loaded
+  - Deploy as serverless endpoint
+  - Test with RunPod console first
+
+OPTION B: Custom Docker worker (more control)
+  - Create handler.py:
+    ```python
+    import runpod
+    from diffusers import FluxPipeline, StableDiffusionXLPipeline
+    import torch, base64, io
+
+    # Load model on cold start
+    flux_pipe = FluxPipeline.from_pretrained(
+        "black-forest-labs/FLUX.1-dev",
+        torch_dtype=torch.float16
+    ).to("cuda")
+
+    def handler(event):
+        input = event["input"]
+        image = flux_pipe(
+            prompt=input["prompt"],
+            width=input.get("width", 1024),
+            height=input.get("height", 1024),
+            num_inference_steps=input.get("num_inference_steps", 28),
+            generator=torch.Generator("cuda").manual_seed(input.get("seed", 42))
+        ).images[0]
+
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        return {"image": base64.b64encode(buffer.getvalue()).decode()}
+
+    runpod.serverless.start({"handler": handler})
+    ```
+  - Dockerfile:
+    ```dockerfile
+    FROM runpod/pytorch:2.1.0-py3.10-cuda11.8.0-devel-ubuntu22.04
+    RUN pip install diffusers transformers accelerate safetensors runpod
+    COPY handler.py /handler.py
+    CMD ["python", "/handler.py"]
+    ```
+  - Push to DockerHub/GitHub Container Registry
+  - Create serverless endpoint on RunPod pointing to your image
+  - Set GPU: A100 40GB for FLUX, A40 for SDXL
+
+COLD START OPTIMIZATION:
+  - FLUX.2 Dev cold start: ~60-90 seconds (model loading)
+  - SDXL-Lightning cold start: ~30-45 seconds
+  - For MVP this is acceptable — user sees "generating..." for first request
+  - Later: keep 1 warm worker during business hours, or use RunPod's flash boot
+
+COST ESTIMATE (MVP):
+  - FLUX.2 Dev: ~$0.0019/sec on A100 → ~$0.05 per image (28 steps)
+  - SDXL-Lightning: ~$0.0012/sec on A40 → ~$0.005 per image (4 steps)
+  - 100 images/day average: ~$5/day FLUX, ~$0.50/day SDXL
+  - Monthly at 100 imgs/day: ~$150-165/month (very manageable)
+
+
+================================================================================
+SECTION 10: KEY IMPLEMENTATION PATTERNS
+================================================================================
+
+────────────────────────────────────────────
+10.1 GENERATION JOB FLOW (async with polling)
+────────────────────────────────────────────
+
+Frontend:
+```typescript
+// hooks/useGeneration.ts
+function useGeneration() {
+  const [jobId, setJobId] = useState(null)
+  const [status, setStatus] = useState("idle")
+  const [results, setResults] = useState(null)
+
+  async function generate(params) {
+    setStatus("submitting")
+    const { jobId } = await fetch("/api/generate/image", {
+      method: "POST",
+      body: JSON.stringify(params)
+    }).then(r => r.json())
+
+    setJobId(jobId)
+    setStatus("processing")
+
+    // Poll every 2 seconds
+    const interval = setInterval(async () => {
+      const res = await fetch(`/api/generate/status/${jobId}`).then(r => r.json())
+      if (res.status === "COMPLETED") {
+        setResults(res.results)
+        setStatus("completed")
+        clearInterval(interval)
+      } else if (res.status === "FAILED") {
+        setStatus("failed")
+        clearInterval(interval)
+      }
+    }, 2000)
+  }
+
+  return { generate, status, results }
+}
+```
+
+Backend job submission:
+```typescript
+// api/generate/image/route.ts
+export async function POST(req) {
+  const session = await getServerSession()
+  const body = await req.json()
+
+  // Check plan limits
+  const monthlyCount = await getMonthlyGenerationCount(session.user.id)
+  if (monthlyCount >= planLimits[user.plan].generations) {
+    return Response.json({ error: "Monthly limit reached" }, { status: 429 })
+  }
+
+  // Create generation record
+  const generation = await prisma.generation.create({
+    data: {
+      userId: session.user.id,
+      brandId: body.brandId,
+      campaignId: body.campaignId,
+      type: "IMAGE_CONCEPT",
+      status: "PENDING",
+      prompt: body.prompt,
+      model: body.model,
+      parameters: { width: body.width, height: body.height, steps: body.steps },
+    }
+  })
+
+  // Build full prompt with brand context
+  let fullPrompt = body.prompt
+  if (body.useBrandContext && body.brandId) {
+    fullPrompt = await buildImagePrompt(body.prompt, body.brandId)
+  }
+
+  // Queue job
+  await generationQueue.add("image", {
+    generationId: generation.id,
+    prompt: fullPrompt,
+    model: body.model,
+    width: body.width,
+    height: body.height,
+    steps: body.steps,
+    count: body.count,
+  })
+
+  return Response.json({ jobId: generation.id })
+}
+```
+
+────────────────────────────────────────────
+10.2 BRAND CONTEXT ASSEMBLY PATTERN
+────────────────────────────────────────────
+
+```typescript
+// services/brand-brain/context-assembler.ts
+export async function assembleBrandContext(brandId: string) {
+  const brain = await prisma.brandBrain.findUnique({
+    where: { brandId }
+  })
+  if (!brain) return null
+
+  return {
+    voice: {
+      tone: brain.toneDescriptors.join(", "),
+      style: brain.sentenceStyle,
+      vocabulary: brain.vocabularyLevel,
+      avoid: brain.bannedWords,
+      cta: brain.ctaStyle,
+      summary: brain.voiceSummary,
+    },
+    visual: {
+      colors: [...brain.primaryColors, ...brain.secondaryColors],
+      primaryColors: brain.primaryColors,
+      imageStyle: brain.imageStyle,
+      composition: brain.compositionNotes,
+      summary: brain.visualSummary,
+    },
+    products: brain.products,
+    audiences: brain.audiences,
+    competitors: brain.competitors,
+    summary: brain.brandSummary,
+    // Phase 2:
+    winningPatterns: brain.winningPatterns,
+  }
+}
+```
+
+────────────────────────────────────────────
+10.3 ADDING NEW MODELS (Future-proof pattern)
+────────────────────────────────────────────
+
+The playground approach means adding models is trivial:
+
+```typescript
+// config/models.ts
+export const AVAILABLE_MODELS = {
+  image: [
+    {
+      id: "flux-dev",
+      name: "FLUX.2 Dev",
+      provider: "runpod",
+      speed: "quality",      // "fast" | "quality"
+      icon: "🎨",
+      description: "Highest quality, great for hero images",
+      defaultSteps: 28,
+      maxResolution: 2048,
+    },
+    {
+      id: "sdxl-lightning",
+      name: "SDXL Lightning",
+      provider: "runpod",
+      speed: "fast",
+      icon: "⚡",
+      description: "Sub-second generation, great for iterations",
+      defaultSteps: 4,
+      maxResolution: 1024,
+    },
+    // ADDING A NEW MODEL IS JUST ADDING AN ENTRY HERE
+    // + a handler in model-router.ts
+    // + a RunPod endpoint (or API call)
+  ],
+  copy: [
+    {
+      id: "claude-sonnet",
+      name: "Claude Sonnet",
+      provider: "anthropic",
+      speed: "quality",
+      icon: "🧠",
+      description: "Best for nuanced brand voice",
+    },
+    {
+      id: "mistral-7b",
+      name: "Mistral 7B",
+      provider: "openrouter",
+      speed: "fast",
+      icon: "⚡",
+      description: "Fast and cheap for simple variations",
+    },
+  ]
+}
+```
+
+
+================================================================================
+SECTION 11: WHAT NOT TO BUILD FOR MVP
+================================================================================
+
+DO NOT BUILD THESE YET. They are Phase 2/3:
+
+❌ Performance tracking / analytics dashboard
+❌ Smart suggestions engine
+❌ Team/multi-user collaboration
+❌ Client approval workflows
+❌ Video generation (scripts only, no actual video)
+❌ Competitor intelligence / Meta Ad Library scraping
+❌ Localization / translation
+❌ LoRA fine-tuning pipeline per brand
+❌ Advanced variation engine (single-variable testing)
+❌ Real-time collaboration
+❌ API for programmatic access
+❌ White-labeling
+❌ Mobile app
+
+THESE ARE MVP. Ship first, add later:
+
+✅ Brand onboarding + Brain analysis
+✅ Campaign CRUD + brief builder
+✅ Copy generation playground (with model selection)
+✅ Image generation playground (with model selection)
+✅ Brand context injection ("Use Brain" button)
+✅ Prompt enhancement
+✅ Favorites / save to campaign
+✅ Export + platform-specific resizing
+✅ Stripe subscriptions (3 tiers)
+✅ Basic auth (magic link + Google)
+✅ Landing page
+
+
+================================================================================
+SECTION 12: LAUNCH CHECKLIST
+================================================================================
+
+Before inviting first beta user:
+
+[ ] Full flow works: signup → create brand → upload PDF → brain analyzes
+[ ] Copy playground generates with brand context
+[ ] Image playground generates via RunPod
+[ ] User can favorite and save to campaign
+[ ] Export creates downloadable ZIP with platform-sized images
+[ ] Stripe checkout works for all 3 tiers
+[ ] Plan limits enforced (brand count, generation count)
+[ ] Error handling: failed generations show clear error
+[ ] Loading states everywhere (no broken empty states)
+[ ] Basic landing page with pricing
+[ ] Custom domain live on Vercel
+[ ] Sentry capturing errors
+[ ] One full test run: real brand PDF → real campaign → real export
+
+
+================================================================================
+SECTION 13: COST PROJECTION — FIRST 30 DAYS
+================================================================================
+
+Fixed costs:
+  Vercel:              $0   (free tier, 100GB bandwidth)
+  Supabase:            $0   (free tier: 500MB DB, 1GB storage)
+  Upstash Redis:       $0   (free tier: 10K commands/day)
+  Sentry:              $0   (free tier)
+  Domain:              $12  (one-time annual)
+
+Variable costs (at 10 beta users, ~50 generations/day):
+  Anthropic API:       ~$30-60/month  (Sonnet for copy, Opus for analysis)
+  OpenRouter:          ~$5-10/month   (Mistral for cheap variations)
+  RunPod Serverless:   ~$100-200/month (FLUX + SDXL, serverless billing)
+  Supabase (if over):  $25/month (Pro plan if needed)
+
+TOTAL MONTH 1: ~$150-300
+TOTAL MONTH 1 WITH 25 USERS: ~$300-500
+
+At 25 users paying avg $149/month = $3,725 MRR
+Gross margin at this point: ~85-90%
+
+The self-hosted GPU model (via RunPod serverless) is dramatically cheaper
+than per-image API pricing from competitors. This is the structural advantage.
+
+
+================================================================================
+END OF BLUEPRINT
+================================================================================
+
+Next steps:
+1. Open terminal
+2. Create the project: npx create-next-app@latest creative-ops
+3. Copy this blueprint into the project as BLUEPRINT.txt
+4. Start with Section 8, Week 1, Day 1
+5. Reference this document for every decision
+
+Every tool is named. Every file path is specified. Every API route is defined.
+No decisions left to make. Just build.

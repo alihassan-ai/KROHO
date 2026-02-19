@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import {
     Sparkles, FileText, ImageIcon, Settings, Globe, Loader2,
     Target, Users, BarChart3, Layers, Zap, TrendingUp,
-    ChevronRight, ExternalLink, Brain, PieChart,
+    ChevronRight, ExternalLink, Brain, PieChart, Trash2,
 } from 'lucide-react';
 import Image from 'next/image';
 import { format } from 'date-fns';
@@ -86,6 +86,7 @@ export default function BrandDetailPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isRefining, setIsRefining] = useState(false);
+    const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
 
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -131,6 +132,20 @@ export default function BrandDetailPage() {
             toast.error('Failed to start analysis');
             console.error(error);
             setIsAnalyzing(false);
+        }
+    };
+
+    const handleDeleteAsset = async (assetId: string) => {
+        setDeletingAssetId(assetId);
+        try {
+            const res = await fetch(`/api/brands/${brandId}/assets/${assetId}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error('Delete failed');
+            toast.success('Asset deleted');
+            fetchBrand();
+        } catch {
+            toast.error('Failed to delete asset');
+        } finally {
+            setDeletingAssetId(null);
         }
     };
 
@@ -811,23 +826,38 @@ export default function BrandDetailPage() {
                             <CardContent className="space-y-6">
                                 <AssetUploader brandId={brandId} onUploadComplete={() => {
                                     toast.success('Assets uploaded! Re-analyze to update Brand Brain.');
+                                    fetchBrand();
                                 }} />
                                 {brand.assets?.length > 0 ? (
                                     <div className="grid gap-3 md:grid-cols-2">
                                         {brand.assets.map((asset: any) => (
-                                            <div key={asset.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30">
-                                                <div className="flex items-center gap-3">
+                                            <div key={asset.id} className="flex items-center justify-between p-3 rounded-lg border bg-muted/30 group">
+                                                <div className="flex items-center gap-3 min-w-0">
                                                     {asset.mimeType?.includes('pdf')
-                                                        ? <FileText className="h-5 w-5 text-red-500" />
-                                                        : <ImageIcon className="h-5 w-5 text-blue-500" />}
-                                                    <div>
-                                                        <p className="text-sm font-medium truncate max-w-[200px]">{asset.filename}</p>
+                                                        ? <FileText className="h-5 w-5 text-red-500 shrink-0" />
+                                                        : <ImageIcon className="h-5 w-5 text-blue-500 shrink-0" />}
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-medium truncate max-w-[180px]">{asset.filename}</p>
                                                         <p className="text-xs text-muted-foreground">{(asset.sizeBytes / 1024 / 1024).toFixed(2)} MB</p>
                                                     </div>
                                                 </div>
-                                                <Button variant="ghost" size="sm" asChild>
-                                                    <a href={asset.url} target="_blank" rel="noopener noreferrer">View</a>
-                                                </Button>
+                                                <div className="flex items-center gap-1 shrink-0">
+                                                    <Button variant="ghost" size="sm" asChild>
+                                                        <a href={asset.url} target="_blank" rel="noopener noreferrer">View</a>
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                        onClick={() => handleDeleteAsset(asset.id)}
+                                                        disabled={deletingAssetId === asset.id}
+                                                        title="Delete asset"
+                                                    >
+                                                        {deletingAssetId === asset.id
+                                                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                            : <Trash2 className="h-4 w-4" />}
+                                                    </Button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
